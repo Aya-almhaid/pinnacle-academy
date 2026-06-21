@@ -3,12 +3,28 @@ import bcrypt from 'bcryptjs';
 
 export const db = new Database(process.env.DB_PATH || 'academy.db');
 
-const INSTRUCTOR_BIOS = {
-  'sarah@pinnacle.academy':
-    'Sarah is a full-stack engineer with 8 years of industry experience, passionate about helping beginners break into tech.',
-  'james@pinnacle.academy':
-    'James is a certified language coach with a decade of experience helping students achieve fluency and ace standardized tests.',
-};
+const INSTRUCTORS = [
+  {
+    email: 'sarah@pinnacle.academy',
+    name: 'Sarah Chen',
+    bio: 'Sarah is a full-stack engineer with 8 years of industry experience, passionate about helping beginners break into tech.',
+  },
+  {
+    email: 'james@pinnacle.academy',
+    name: 'James Carter',
+    bio: 'James is a certified language coach with a decade of experience helping students achieve fluency and ace standardized tests.',
+  },
+  {
+    email: 'maria@pinnacle.academy',
+    name: 'Maria Lopez',
+    bio: 'Maria is a graphic designer and brand consultant with 6 years of experience teaching visual design fundamentals.',
+  },
+  {
+    email: 'omar@pinnacle.academy',
+    name: 'Omar Haddad',
+    bio: 'Omar is a marketing strategist and former math teacher who loves making practical, numbers-driven skills approachable.',
+  },
+];
 
 const SEED_COURSES = [
   {
@@ -32,7 +48,10 @@ const SEED_COURSES = [
     duration: '6 weeks',
     level: 'Beginner',
     syllabus: 'Python Syntax & Variables,Control Flow,Functions & Modules,Data Structures,Mini Project',
-    sections: [{ name: 'Section A', instructorEmail: 'sarah@pinnacle.academy', schedule: 'Tue/Thu 6:00-7:30 PM' }],
+    sections: [
+      { name: 'Section A', instructorEmail: 'sarah@pinnacle.academy', schedule: 'Tue/Thu 6:00-7:30 PM' },
+      { name: 'Section B', instructorEmail: 'sarah@pinnacle.academy', schedule: 'Sat 2:00-4:00 PM' },
+    ],
   },
   {
     title: 'English Conversation Mastery',
@@ -55,7 +74,10 @@ const SEED_COURSES = [
     duration: '6 weeks',
     level: 'Intermediate',
     syllabus: 'Listening Strategies,Reading Techniques,Writing Task 1 & 2,Speaking Practice,Full Mock Tests',
-    sections: [{ name: 'Section A', instructorEmail: 'james@pinnacle.academy', schedule: 'Tue/Thu 7:00-9:00 PM' }],
+    sections: [
+      { name: 'Section A', instructorEmail: 'james@pinnacle.academy', schedule: 'Tue/Thu 7:00-9:00 PM' },
+      { name: 'Section B', instructorEmail: 'james@pinnacle.academy', schedule: 'Sun 3:00-5:00 PM' },
+    ],
   },
   {
     title: 'Math Tutoring (Grades 6-12)',
@@ -65,7 +87,33 @@ const SEED_COURSES = [
     duration: 'Ongoing',
     level: 'All Levels',
     syllabus: 'Algebra Foundations,Geometry,Pre-Calculus,Problem Solving Strategies',
-    sections: [{ name: 'Section A', instructorEmail: null, schedule: 'Flexible scheduling' }],
+    sections: [
+      { name: 'Section A', instructorEmail: 'omar@pinnacle.academy', schedule: 'Tue/Fri 4:00-5:30 PM' },
+      { name: 'Section B', instructorEmail: null, schedule: 'Flexible scheduling' },
+    ],
+  },
+  {
+    title: 'Graphic Design Fundamentals',
+    description: 'Learn the core principles of visual design — color, typography, and layout — and build a small portfolio.',
+    category: 'Design',
+    price: 169,
+    duration: '5 weeks',
+    level: 'Beginner',
+    syllabus: 'Color Theory,Typography,Layout & Composition,Design Tools,Portfolio Project',
+    sections: [
+      { name: 'Section A', instructorEmail: 'maria@pinnacle.academy', schedule: 'Wed 6:00-8:00 PM' },
+      { name: 'Section B', instructorEmail: 'maria@pinnacle.academy', schedule: 'Sat 1:00-3:00 PM' },
+    ],
+  },
+  {
+    title: 'Digital Marketing Basics',
+    description: 'A practical introduction to social media, content, and ad strategy for small businesses and creators.',
+    category: 'Business',
+    price: 159,
+    duration: '4 weeks',
+    level: 'Beginner',
+    syllabus: 'Social Media Strategy,Content Planning,Intro to Paid Ads,Analytics Basics',
+    sections: [{ name: 'Section A', instructorEmail: 'omar@pinnacle.academy', schedule: 'Mon/Thu 7:00-8:30 PM' }],
   },
 ];
 
@@ -147,41 +195,50 @@ if (hasCourseIdColumn > 0) {
   }
 }
 
-const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
-if (userCount === 0) {
-  const insertUser = db.prepare('INSERT INTO users (name, email, password_hash, role, bio) VALUES (?, ?, ?, ?, ?)');
-  const adminId = insertUser.run('Admin', 'admin@pinnacle.academy', bcrypt.hashSync('admin123', 10), 'admin', '')
-    .lastInsertRowid;
-  const instructorIdByEmail = {
-    'sarah@pinnacle.academy': insertUser.run(
-      'Sarah Chen',
-      'sarah@pinnacle.academy',
-      bcrypt.hashSync('instructor123', 10),
-      'instructor',
-      INSTRUCTOR_BIOS['sarah@pinnacle.academy']
-    ).lastInsertRowid,
-    'james@pinnacle.academy': insertUser.run(
-      'James Carter',
-      'james@pinnacle.academy',
-      bcrypt.hashSync('instructor123', 10),
-      'instructor',
-      INSTRUCTOR_BIOS['james@pinnacle.academy']
-    ).lastInsertRowid,
-  };
+// --- Idempotent content seeding: safe to run on a fresh DB or an already-seeded one ---
+const findUserByEmail = db.prepare('SELECT id FROM users WHERE email = ?');
+const insertUser = db.prepare('INSERT INTO users (name, email, password_hash, role, bio) VALUES (?, ?, ?, ?, ?)');
+const defaultInstructorPasswordHash = bcrypt.hashSync('instructor123', 10);
 
-  const insertCourse = db.prepare(
-    'INSERT INTO courses (title, description, category, price, duration, level, syllabus, instructor_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-  );
-  const insertSection = db.prepare(
-    'INSERT INTO sections (course_id, name, instructor_id, schedule) VALUES (?, ?, ?, ?)'
-  );
+if (!findUserByEmail.get('admin@pinnacle.academy')) {
+  insertUser.run('Admin', 'admin@pinnacle.academy', bcrypt.hashSync('admin123', 10), 'admin', '');
+  console.log('Seeded admin account.');
+}
 
-  for (const course of SEED_COURSES) {
+const instructorIdByEmail = {};
+for (const instructor of INSTRUCTORS) {
+  const existing = findUserByEmail.get(instructor.email);
+  if (existing) {
+    instructorIdByEmail[instructor.email] = existing.id;
+  } else {
+    const { lastInsertRowid } = insertUser.run(
+      instructor.name,
+      instructor.email,
+      defaultInstructorPasswordHash,
+      'instructor',
+      instructor.bio
+    );
+    instructorIdByEmail[instructor.email] = lastInsertRowid;
+    console.log(`Seeded new instructor: ${instructor.name}`);
+  }
+}
+
+const findCourseByTitle = db.prepare('SELECT id FROM courses WHERE title = ?');
+const insertCourse = db.prepare(
+  'INSERT INTO courses (title, description, category, price, duration, level, syllabus, instructor_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+);
+const findSection = db.prepare('SELECT id FROM sections WHERE course_id = ? AND name = ?');
+const insertSection = db.prepare('INSERT INTO sections (course_id, name, instructor_id, schedule) VALUES (?, ?, ?, ?)');
+
+for (const course of SEED_COURSES) {
+  let courseId = findCourseByTitle.get(course.title)?.id;
+
+  if (!courseId) {
     const primaryInstructorId = course.sections[0]?.instructorEmail
       ? instructorIdByEmail[course.sections[0].instructorEmail]
       : null;
 
-    const { lastInsertRowid: courseId } = insertCourse.run(
+    courseId = insertCourse.run(
       course.title,
       course.description,
       course.category,
@@ -190,22 +247,24 @@ if (userCount === 0) {
       course.level,
       course.syllabus,
       primaryInstructorId
-    );
+    ).lastInsertRowid;
+    console.log(`Seeded new course: ${course.title}`);
+  }
 
-    for (const section of course.sections) {
+  for (const section of course.sections) {
+    if (!findSection.get(courseId, section.name)) {
       insertSection.run(
         courseId,
         section.name,
         section.instructorEmail ? instructorIdByEmail[section.instructorEmail] : null,
         section.schedule
       );
+      console.log(`Seeded new section: ${course.title} — ${section.name}`);
     }
   }
-
-  console.log(`Seeded admin (id ${adminId}), 2 instructors, and ${SEED_COURSES.length} courses with sections.`);
 }
 
-// Backfill duration/level/syllabus/bio for data seeded before these fields existed
+// Backfill duration/level/syllabus for courses seeded before these fields existed
 const backfillCourse = db.prepare(
   "UPDATE courses SET duration = ?, level = ?, syllabus = ? WHERE title = ? AND duration = ''"
 );
@@ -213,9 +272,9 @@ for (const course of SEED_COURSES) {
   backfillCourse.run(course.duration, course.level, course.syllabus, course.title);
 }
 
-const backfillBio = db.prepare("UPDATE users SET bio = ? WHERE email = ? AND bio = ''");
-for (const [email, bio] of Object.entries(INSTRUCTOR_BIOS)) {
-  backfillBio.run(bio, email);
+const backfillBio = db.prepare('UPDATE users SET bio = ? WHERE email = ? AND bio = ?');
+for (const instructor of INSTRUCTORS) {
+  backfillBio.run(instructor.bio, instructor.email, '');
 }
 
 // Ensure every existing course has at least one section (covers courses created

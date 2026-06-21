@@ -219,6 +219,18 @@ a {
   border-color: #1e3a8a;
 }
 
+.topic-group {
+  margin-bottom: 36px;
+}
+
+.topic-heading {
+  font-size: 18px;
+  color: #1e3a8a;
+  border-bottom: 2px solid #dbeafe;
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+}
+
 .course-detail .instructor {
   color: #666;
   margin-bottom: 16px;

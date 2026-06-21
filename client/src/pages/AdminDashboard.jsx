@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api';
 
-const CATEGORIES = ['Tech', 'Languages', 'Exam Prep', 'Academic Support'];
+const CATEGORIES = ['Tech', 'Languages', 'Exam Prep', 'Academic Support', 'Design', 'Business'];
 const LEVELS = ['All Levels', 'Beginner', 'Intermediate', 'Advanced'];
 
 const EMPTY_FORM = {
