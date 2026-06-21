@@ -17,13 +17,16 @@ export default function StudentDashboard() {
       <p className="subtitle">Your enrolled courses</p>
 
       <div className="course-grid">
-        {enrollments.map((course) => (
-          <Link to={`/courses/${course.id}`} key={course.id} className="course-card">
-            <span className="category-tag">{course.category}</span>
-            <h3>{course.title}</h3>
-            <p>Instructor: {course.instructor_name || 'Staff'}</p>
+        {enrollments.map((enrollment) => (
+          <Link to={`/courses/${enrollment.course_id}`} key={enrollment.section_id} className="course-card">
+            <span className="category-tag">{enrollment.category}</span>
+            <h3>{enrollment.title}</h3>
+            <p>
+              {enrollment.section_name} · {enrollment.schedule || 'Schedule TBA'}
+            </p>
             <div className="course-card-footer">
-              <span>Enrolled {course.enrolled_at?.slice(0, 10)}</span>
+              <span>Instructor: {enrollment.instructor_name || 'Staff'}</span>
+              <span>Enrolled {enrollment.enrolled_at?.slice(0, 10)}</span>
             </div>
           </Link>
         ))}

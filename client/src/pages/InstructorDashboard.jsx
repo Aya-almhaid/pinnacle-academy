@@ -3,45 +3,50 @@ import api from '../api';
 import { useAuth } from '../AuthContext';
 
 export default function InstructorDashboard() {
-  const [courses, setCourses] = useState([]);
-  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [sections, setSections] = useState([]);
+  const [selectedSection, setSelectedSection] = useState(null);
   const [students, setStudents] = useState([]);
   const { user } = useAuth();
 
   useEffect(() => {
-    api.get('/instructor/courses').then(({ data }) => setCourses(data));
+    api.get('/instructor/sections').then(({ data }) => setSections(data));
   }, []);
 
-  const viewStudents = async (course) => {
-    setSelectedCourse(course);
-    const { data } = await api.get(`/instructor/courses/${course.id}/students`);
+  const viewStudents = async (section) => {
+    setSelectedSection(section);
+    const { data } = await api.get(`/instructor/sections/${section.id}/students`);
     setStudents(data);
   };
 
   return (
     <div className="page-section">
       <h1>Welcome, {user.name}</h1>
-      <p className="subtitle">Your courses</p>
+      <p className="subtitle">Your sections</p>
 
       <div className="instructor-layout">
         <ul className="instructor-course-list">
-          {courses.map((course) => (
+          {sections.map((section) => (
             <li
-              key={course.id}
-              className={selectedCourse?.id === course.id ? 'active' : ''}
-              onClick={() => viewStudents(course)}
+              key={section.id}
+              className={selectedSection?.id === section.id ? 'active' : ''}
+              onClick={() => viewStudents(section)}
             >
-              <strong>{course.title}</strong>
-              <span>{course.enrolled_count} students</span>
+              <strong>
+                {section.course_title} — {section.name}
+              </strong>
+              <span>{section.schedule || 'Schedule TBA'}</span>
+              <span>{section.enrolled_count} students</span>
             </li>
           ))}
-          {courses.length === 0 && <p>No courses assigned to you yet.</p>}
+          {sections.length === 0 && <p>No sections assigned to you yet.</p>}
         </ul>
 
         <div className="student-roster">
-          {selectedCourse ? (
+          {selectedSection ? (
             <>
-              <h2>{selectedCourse.title} — Enrolled Students</h2>
+              <h2>
+                {selectedSection.course_title} — {selectedSection.name} · Enrolled Students
+              </h2>
               <table>
                 <thead>
                   <tr>
@@ -67,7 +72,7 @@ export default function InstructorDashboard() {
               </table>
             </>
           ) : (
-            <p>Select a course to view its enrolled students.</p>
+            <p>Select a section to view its enrolled students.</p>
           )}
         </div>
       </div>

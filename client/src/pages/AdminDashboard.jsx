@@ -15,22 +15,29 @@ const EMPTY_FORM = {
   instructor_id: '',
 };
 
+const EMPTY_SECTION_FORM = { course_id: '', name: '', instructor_id: '', schedule: '' };
+
 export default function AdminDashboard() {
   const [tab, setTab] = useState('courses');
   const [courses, setCourses] = useState([]);
   const [instructors, setInstructors] = useState([]);
   const [users, setUsers] = useState([]);
+  const [sections, setSections] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
+  const [sectionForm, setSectionForm] = useState(EMPTY_SECTION_FORM);
+  const [editingSectionId, setEditingSectionId] = useState(null);
 
   const loadCourses = () => api.get('/courses').then(({ data }) => setCourses(data));
   const loadInstructors = () => api.get('/admin/instructors').then(({ data }) => setInstructors(data));
   const loadUsers = () => api.get('/admin/users').then(({ data }) => setUsers(data));
+  const loadSections = () => api.get('/admin/sections').then(({ data }) => setSections(data));
 
   useEffect(() => {
     loadCourses();
     loadInstructors();
     loadUsers();
+    loadSections();
   }, []);
 
   const resetForm = () => {
@@ -67,6 +74,7 @@ export default function AdminDashboard() {
   const handleDelete = async (id) => {
     await api.delete(`/courses/${id}`);
     loadCourses();
+    loadSections();
   };
 
   const handleRoleChange = async (id, role) => {
@@ -75,12 +83,47 @@ export default function AdminDashboard() {
     loadInstructors();
   };
 
+  const resetSectionForm = () => {
+    setSectionForm(EMPTY_SECTION_FORM);
+    setEditingSectionId(null);
+  };
+
+  const handleSectionSubmit = async (e) => {
+    e.preventDefault();
+    const payload = { ...sectionForm, instructor_id: sectionForm.instructor_id || null };
+    if (editingSectionId) {
+      await api.patch(`/admin/sections/${editingSectionId}`, payload);
+    } else {
+      await api.post('/admin/sections', payload);
+    }
+    resetSectionForm();
+    loadSections();
+  };
+
+  const handleSectionEdit = (section) => {
+    setEditingSectionId(section.id);
+    setSectionForm({
+      course_id: section.course_id,
+      name: section.name,
+      instructor_id: section.instructor_id || '',
+      schedule: section.schedule || '',
+    });
+  };
+
+  const handleSectionDelete = async (id) => {
+    await api.delete(`/admin/sections/${id}`);
+    loadSections();
+  };
+
   return (
     <div className="page-section">
       <h1>Admin Dashboard</h1>
       <div className="admin-tabs">
         <button className={tab === 'courses' ? 'active' : ''} onClick={() => setTab('courses')}>
           Manage Courses
+        </button>
+        <button className={tab === 'sections' ? 'active' : ''} onClick={() => setTab('sections')}>
+          Manage Sections
         </button>
         <button className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>
           Manage Users
@@ -133,7 +176,7 @@ export default function AdminDashboard() {
               className="syllabus-input"
             />
             <select value={form.instructor_id} onChange={(e) => setForm({ ...form, instructor_id: e.target.value })}>
-              <option value="">No instructor</option>
+              <option value="">No primary instructor</option>
               {instructors.map((i) => (
                 <option key={i.id} value={i.id}>
                   {i.name}
@@ -154,7 +197,7 @@ export default function AdminDashboard() {
                 <th>Title</th>
                 <th>Category</th>
                 <th>Price</th>
-                <th>Instructor</th>
+                <th>Primary Instructor</th>
                 <th>Enrolled</th>
                 <th></th>
               </tr>
@@ -170,6 +213,79 @@ export default function AdminDashboard() {
                   <td>
                     <button onClick={() => handleEdit(c)}>Edit</button>
                     <button onClick={() => handleDelete(c.id)}>Delete</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab === 'sections' && (
+        <div className="admin-courses">
+          <form className="course-form" onSubmit={handleSectionSubmit}>
+            <select
+              value={sectionForm.course_id}
+              onChange={(e) => setSectionForm({ ...sectionForm, course_id: e.target.value })}
+              required
+            >
+              <option value="">Select course</option>
+              {courses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+            <input
+              placeholder="Section name (e.g. Section A)"
+              value={sectionForm.name}
+              onChange={(e) => setSectionForm({ ...sectionForm, name: e.target.value })}
+              required
+            />
+            <input
+              placeholder="Schedule (e.g. Mon/Wed 6-8 PM)"
+              value={sectionForm.schedule}
+              onChange={(e) => setSectionForm({ ...sectionForm, schedule: e.target.value })}
+            />
+            <select
+              value={sectionForm.instructor_id}
+              onChange={(e) => setSectionForm({ ...sectionForm, instructor_id: e.target.value })}
+            >
+              <option value="">No instructor</option>
+              {instructors.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name}
+                </option>
+              ))}
+            </select>
+            <button type="submit">{editingSectionId ? 'Update Section' : 'Add Section'}</button>
+            {editingSectionId && (
+              <button type="button" onClick={resetSectionForm}>
+                Cancel
+              </button>
+            )}
+          </form>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Course</th>
+                <th>Section</th>
+                <th>Schedule</th>
+                <th>Instructor</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {sections.map((s) => (
+                <tr key={s.id}>
+                  <td>{s.course_title}</td>
+                  <td>{s.name}</td>
+                  <td>{s.schedule || '—'}</td>
+                  <td>{s.instructor_name || '—'}</td>
+                  <td>
+                    <button onClick={() => handleSectionEdit(s)}>Edit</button>
+                    <button onClick={() => handleSectionDelete(s.id)}>Delete</button>
                   </td>
                 </tr>
               ))}

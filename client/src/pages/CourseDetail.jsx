@@ -10,19 +10,22 @@ export default function CourseDetail() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const loadCourse = () => api.get(`/courses/${id}`).then(({ data }) => setCourse(data));
+
   useEffect(() => {
-    api.get(`/courses/${id}`).then(({ data }) => setCourse(data));
+    loadCourse();
   }, [id]);
 
-  const handleEnroll = async () => {
+  const handleEnroll = async (sectionId) => {
     if (!user) return navigate('/login');
     if (user.role !== 'student') {
       setMessage('Only student accounts can enroll in courses.');
       return;
     }
     try {
-      await api.post('/enrollments', { course_id: id });
+      await api.post('/enrollments', { section_id: sectionId });
       setMessage('Enrolled successfully! Check your dashboard.');
+      loadCourse();
     } catch (err) {
       setMessage(err.response?.data?.message || 'Failed to enroll');
     }
@@ -56,9 +59,22 @@ export default function CourseDetail() {
         </div>
       )}
 
-      <div className="enroll-box">
-        <span className="price">${course.price}</span>
-        <button onClick={handleEnroll}>Enroll Now</button>
+      <div className="sections-list">
+        <h2>Choose a Section</h2>
+        {course.sections.length === 0 && <p>No sections are scheduled for this course yet.</p>}
+        {course.sections.map((section) => (
+          <div className="section-row" key={section.id}>
+            <div>
+              <strong>{section.name}</strong>
+              <span className="section-schedule">{section.schedule || 'Schedule TBA'}</span>
+              <span className="section-instructor">{section.instructor_name || 'Instructor TBA'}</span>
+            </div>
+            <div className="enroll-box">
+              <span className="price">${course.price}</span>
+              <button onClick={() => handleEnroll(section.id)}>Enroll Now</button>
+            </div>
+          </div>
+        ))}
       </div>
       {message && <p className="message">{message}</p>}
     </div>

@@ -19,6 +19,7 @@ export default function Navbar() {
       </Link>
       <div className="nav-links">
         <Link to="/courses">Courses</Link>
+        <Link to="/instructors">Teachers</Link>
         {user ? (
           <>
             <Link to={dashboardLink}>Dashboard</Link>

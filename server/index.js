@@ -20,6 +20,17 @@ function publicUser(user) {
   return { id: user.id, name: user.name, email: user.email, role: user.role };
 }
 
+function sectionsForCourse(courseId) {
+  return db
+    .prepare(
+      `SELECT sections.*, users.name as instructor_name,
+        (SELECT COUNT(*) FROM enrollments WHERE enrollments.section_id = sections.id) as enrolled_count
+       FROM sections LEFT JOIN users ON sections.instructor_id = users.id
+       WHERE sections.course_id = ? ORDER BY sections.id`
+    )
+    .all(courseId);
+}
+
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 // --- Auth ---
@@ -54,7 +65,9 @@ app.get('/api/courses', (req, res) => {
   let courses = db
     .prepare(
       `SELECT courses.*, users.name as instructor_name,
-        (SELECT COUNT(*) FROM enrollments WHERE enrollments.course_id = courses.id) as enrolled_count
+        (SELECT COUNT(*) FROM enrollments
+          JOIN sections ON enrollments.section_id = sections.id
+          WHERE sections.course_id = courses.id) as enrolled_count
        FROM courses LEFT JOIN users ON courses.instructor_id = users.id
        ORDER BY courses.created_at DESC`
     )
@@ -73,15 +86,15 @@ app.get('/api/courses/:id', (req, res) => {
     )
     .get(req.params.id);
   if (!course) return res.status(404).json({ message: 'Course not found' });
-  res.json(course);
+
+  res.json({ ...course, sections: sectionsForCourse(course.id) });
 });
 
 // --- Courses (admin write) ---
 app.post('/api/courses', requireAuth, requireRole('admin'), (req, res) => {
-  const { title, description, category, price, instructor_id } = req.body;
+  const { title, description, category, price, duration, level, syllabus, instructor_id } = req.body;
   if (!title || !category) return res.status(400).json({ message: 'title and category are required' });
 
-  const { duration, level, syllabus } = req.body;
   const { lastInsertRowid } = db
     .prepare(
       'INSERT INTO courses (title, description, category, price, duration, level, syllabus, instructor_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
@@ -130,28 +143,83 @@ app.delete('/api/courses/:id', requireAuth, requireRole('admin'), (req, res) => 
   res.status(204).end();
 });
 
-// --- Enrollments (student) ---
-app.post('/api/enrollments', requireAuth, requireRole('student'), (req, res) => {
-  const { course_id } = req.body;
+// --- Sections (admin write) ---
+app.post('/api/admin/sections', requireAuth, requireRole('admin'), (req, res) => {
+  const { course_id, name, instructor_id, schedule } = req.body;
+  if (!course_id || !name) return res.status(400).json({ message: 'course_id and name are required' });
+
   const course = db.prepare('SELECT id FROM courses WHERE id = ?').get(course_id);
   if (!course) return res.status(404).json({ message: 'Course not found' });
 
-  const existing = db
-    .prepare('SELECT id FROM enrollments WHERE student_id = ? AND course_id = ?')
-    .get(req.userId, course_id);
-  if (existing) return res.status(409).json({ message: 'Already enrolled in this course' });
+  const { lastInsertRowid } = db
+    .prepare('INSERT INTO sections (course_id, name, instructor_id, schedule) VALUES (?, ?, ?, ?)')
+    .run(course_id, name, instructor_id || null, schedule || '');
 
-  db.prepare('INSERT INTO enrollments (student_id, course_id) VALUES (?, ?)').run(req.userId, course_id);
+  res.status(201).json(db.prepare('SELECT * FROM sections WHERE id = ?').get(lastInsertRowid));
+});
+
+app.patch('/api/admin/sections/:id', requireAuth, requireRole('admin'), (req, res) => {
+  const existing = db.prepare('SELECT * FROM sections WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ message: 'Section not found' });
+
+  const { name, instructor_id, schedule } = req.body;
+  db.prepare('UPDATE sections SET name = ?, instructor_id = ?, schedule = ? WHERE id = ?').run(
+    name ?? existing.name,
+    instructor_id ?? existing.instructor_id,
+    schedule ?? existing.schedule,
+    req.params.id
+  );
+
+  res.json(db.prepare('SELECT * FROM sections WHERE id = ?').get(req.params.id));
+});
+
+app.delete('/api/admin/sections/:id', requireAuth, requireRole('admin'), (req, res) => {
+  const result = db.prepare('DELETE FROM sections WHERE id = ?').run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ message: 'Section not found' });
+  res.status(204).end();
+});
+
+// --- Instructors (public read) ---
+app.get('/api/instructors', (req, res) => {
+  const instructors = db.prepare("SELECT id, name, bio FROM users WHERE role = 'instructor' ORDER BY name").all();
+  const withSections = instructors.map((instructor) => ({
+    ...instructor,
+    sections: db
+      .prepare(
+        `SELECT sections.id, sections.name, sections.schedule, courses.id as course_id, courses.title as course_title
+         FROM sections JOIN courses ON sections.course_id = courses.id
+         WHERE sections.instructor_id = ? ORDER BY courses.title`
+      )
+      .all(instructor.id),
+  }));
+  res.json(withSections);
+});
+
+// --- Enrollments (student) ---
+app.post('/api/enrollments', requireAuth, requireRole('student'), (req, res) => {
+  const { section_id } = req.body;
+  const section = db.prepare('SELECT id FROM sections WHERE id = ?').get(section_id);
+  if (!section) return res.status(404).json({ message: 'Section not found' });
+
+  const existing = db
+    .prepare('SELECT id FROM enrollments WHERE student_id = ? AND section_id = ?')
+    .get(req.userId, section_id);
+  if (existing) return res.status(409).json({ message: 'Already enrolled in this section' });
+
+  db.prepare('INSERT INTO enrollments (student_id, section_id) VALUES (?, ?)').run(req.userId, section_id);
   res.status(201).json({ message: 'Enrolled successfully' });
 });
 
 app.get('/api/enrollments/me', requireAuth, requireRole('student'), (req, res) => {
   const enrollments = db
     .prepare(
-      `SELECT courses.*, users.name as instructor_name, enrollments.enrolled_at
+      `SELECT courses.id as course_id, courses.title, courses.category, courses.description,
+        sections.id as section_id, sections.name as section_name, sections.schedule,
+        users.name as instructor_name, enrollments.enrolled_at
        FROM enrollments
-       JOIN courses ON enrollments.course_id = courses.id
-       LEFT JOIN users ON courses.instructor_id = users.id
+       JOIN sections ON enrollments.section_id = sections.id
+       JOIN courses ON sections.course_id = courses.id
+       LEFT JOIN users ON sections.instructor_id = users.id
        WHERE enrollments.student_id = ?
        ORDER BY enrollments.enrolled_at DESC`
     )
@@ -160,25 +228,29 @@ app.get('/api/enrollments/me', requireAuth, requireRole('student'), (req, res) =
 });
 
 // --- Instructor ---
-app.get('/api/instructor/courses', requireAuth, requireRole('instructor'), (req, res) => {
-  const courses = db
+app.get('/api/instructor/sections', requireAuth, requireRole('instructor'), (req, res) => {
+  const sections = db
     .prepare(
-      `SELECT courses.*, (SELECT COUNT(*) FROM enrollments WHERE enrollments.course_id = courses.id) as enrolled_count
-       FROM courses WHERE instructor_id = ? ORDER BY created_at DESC`
+      `SELECT sections.*, courses.title as course_title,
+        (SELECT COUNT(*) FROM enrollments WHERE enrollments.section_id = sections.id) as enrolled_count
+       FROM sections JOIN courses ON sections.course_id = courses.id
+       WHERE sections.instructor_id = ? ORDER BY sections.created_at DESC`
     )
     .all(req.userId);
-  res.json(courses);
+  res.json(sections);
 });
 
-app.get('/api/instructor/courses/:id/students', requireAuth, requireRole('instructor'), (req, res) => {
-  const course = db.prepare('SELECT * FROM courses WHERE id = ? AND instructor_id = ?').get(req.params.id, req.userId);
-  if (!course) return res.status(404).json({ message: 'Course not found' });
+app.get('/api/instructor/sections/:id/students', requireAuth, requireRole('instructor'), (req, res) => {
+  const section = db
+    .prepare('SELECT * FROM sections WHERE id = ? AND instructor_id = ?')
+    .get(req.params.id, req.userId);
+  if (!section) return res.status(404).json({ message: 'Section not found' });
 
   const students = db
     .prepare(
       `SELECT users.id, users.name, users.email, enrollments.enrolled_at
        FROM enrollments JOIN users ON enrollments.student_id = users.id
-       WHERE enrollments.course_id = ? ORDER BY enrollments.enrolled_at DESC`
+       WHERE enrollments.section_id = ? ORDER BY enrollments.enrolled_at DESC`
     )
     .all(req.params.id);
   res.json(students);
@@ -193,6 +265,22 @@ app.get('/api/admin/users', requireAuth, requireRole('admin'), (req, res) => {
 app.get('/api/admin/instructors', requireAuth, requireRole('admin'), (req, res) => {
   const instructors = db.prepare("SELECT id, name, email FROM users WHERE role = 'instructor'").all();
   res.json(instructors);
+});
+
+app.get('/api/admin/sections', requireAuth, requireRole('admin'), (req, res) => {
+  const { course_id } = req.query;
+  const sections = course_id
+    ? sectionsForCourse(course_id)
+    : db
+        .prepare(
+          `SELECT sections.*, courses.title as course_title, users.name as instructor_name
+           FROM sections
+           JOIN courses ON sections.course_id = courses.id
+           LEFT JOIN users ON sections.instructor_id = users.id
+           ORDER BY courses.title, sections.name`
+        )
+        .all();
+  res.json(sections);
 });
 
 app.patch('/api/admin/users/:id/role', requireAuth, requireRole('admin'), (req, res) => {
