@@ -81,9 +81,21 @@ app.post('/api/courses', requireAuth, requireRole('admin'), (req, res) => {
   const { title, description, category, price, instructor_id } = req.body;
   if (!title || !category) return res.status(400).json({ message: 'title and category are required' });
 
+  const { duration, level, syllabus } = req.body;
   const { lastInsertRowid } = db
-    .prepare('INSERT INTO courses (title, description, category, price, instructor_id) VALUES (?, ?, ?, ?, ?)')
-    .run(title, description || '', category, price || 0, instructor_id || null);
+    .prepare(
+      'INSERT INTO courses (title, description, category, price, duration, level, syllabus, instructor_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    )
+    .run(
+      title,
+      description || '',
+      category,
+      price || 0,
+      duration || '',
+      level || 'All Levels',
+      Array.isArray(syllabus) ? syllabus.join(',') : syllabus || '',
+      instructor_id || null
+    );
 
   res.status(201).json(db.prepare('SELECT * FROM courses WHERE id = ?').get(lastInsertRowid));
 });
@@ -92,12 +104,19 @@ app.patch('/api/courses/:id', requireAuth, requireRole('admin'), (req, res) => {
   const existing = db.prepare('SELECT * FROM courses WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ message: 'Course not found' });
 
-  const { title, description, category, price, instructor_id } = req.body;
-  db.prepare('UPDATE courses SET title = ?, description = ?, category = ?, price = ?, instructor_id = ? WHERE id = ?').run(
+  const { title, description, category, price, duration, level, syllabus, instructor_id } = req.body;
+  const syllabusStr = Array.isArray(syllabus) ? syllabus.join(',') : syllabus;
+
+  db.prepare(
+    'UPDATE courses SET title = ?, description = ?, category = ?, price = ?, duration = ?, level = ?, syllabus = ?, instructor_id = ? WHERE id = ?'
+  ).run(
     title ?? existing.title,
     description ?? existing.description,
     category ?? existing.category,
     price ?? existing.price,
+    duration ?? existing.duration,
+    level ?? existing.level,
+    syllabusStr ?? existing.syllabus,
     instructor_id ?? existing.instructor_id,
     req.params.id
   );

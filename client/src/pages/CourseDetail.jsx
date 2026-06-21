@@ -30,12 +30,32 @@ export default function CourseDetail() {
 
   if (!course) return <div className="page-section">Loading...</div>;
 
+  const topics = course.syllabus ? course.syllabus.split(',').filter(Boolean) : [];
+
   return (
     <div className="page-section course-detail">
       <span className="category-tag">{course.category}</span>
       <h1>{course.title}</h1>
       <p className="instructor">Taught by {course.instructor_name || 'Pinnacle Academy Staff'}</p>
+
+      <div className="course-meta">
+        {course.duration && <span className="meta-pill">⏱ {course.duration}</span>}
+        {course.level && <span className="meta-pill">📊 {course.level}</span>}
+      </div>
+
       <p className="description">{course.description}</p>
+
+      {topics.length > 0 && (
+        <div className="syllabus">
+          <h2>What You'll Learn</h2>
+          <ul>
+            {topics.map((topic) => (
+              <li key={topic}>{topic.trim()}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="enroll-box">
         <span className="price">${course.price}</span>
         <button onClick={handleEnroll}>Enroll Now</button>

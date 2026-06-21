@@ -153,6 +153,45 @@ a {
   color: #1e3a8a;
 }
 
+.course-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.meta-pill {
+  font-size: 11px;
+  background: #f0f2f5;
+  color: #555;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.syllabus {
+  max-width: 600px;
+  margin: 20px 0;
+}
+
+.syllabus h2 {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.syllabus ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.syllabus li {
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: #333;
+}
+
+.syllabus-input {
+  min-width: 260px;
+}
+
 .category-filter {
   display: flex;
   gap: 8px;

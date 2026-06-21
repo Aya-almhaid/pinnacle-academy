@@ -2,13 +2,25 @@ import { useEffect, useState } from 'react';
 import api from '../api';
 
 const CATEGORIES = ['Tech', 'Languages', 'Exam Prep', 'Academic Support'];
+const LEVELS = ['All Levels', 'Beginner', 'Intermediate', 'Advanced'];
+
+const EMPTY_FORM = {
+  title: '',
+  description: '',
+  category: CATEGORIES[0],
+  price: '',
+  duration: '',
+  level: LEVELS[0],
+  syllabus: '',
+  instructor_id: '',
+};
 
 export default function AdminDashboard() {
   const [tab, setTab] = useState('courses');
   const [courses, setCourses] = useState([]);
   const [instructors, setInstructors] = useState([]);
   const [users, setUsers] = useState([]);
-  const [form, setForm] = useState({ title: '', description: '', category: CATEGORIES[0], price: '', instructor_id: '' });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
 
   const loadCourses = () => api.get('/courses').then(({ data }) => setCourses(data));
@@ -22,7 +34,7 @@ export default function AdminDashboard() {
   }, []);
 
   const resetForm = () => {
-    setForm({ title: '', description: '', category: CATEGORIES[0], price: '', instructor_id: '' });
+    setForm(EMPTY_FORM);
     setEditingId(null);
   };
 
@@ -45,6 +57,9 @@ export default function AdminDashboard() {
       description: course.description,
       category: course.category,
       price: course.price,
+      duration: course.duration || '',
+      level: course.level || LEVELS[0],
+      syllabus: course.syllabus || '',
       instructor_id: course.instructor_id || '',
     });
   };
@@ -98,6 +113,24 @@ export default function AdminDashboard() {
               placeholder="Price"
               value={form.price}
               onChange={(e) => setForm({ ...form, price: e.target.value })}
+            />
+            <input
+              placeholder="Duration (e.g. 6 weeks)"
+              value={form.duration}
+              onChange={(e) => setForm({ ...form, duration: e.target.value })}
+            />
+            <select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })}>
+              {LEVELS.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
+            <input
+              placeholder="Syllabus topics (comma-separated)"
+              value={form.syllabus}
+              onChange={(e) => setForm({ ...form, syllabus: e.target.value })}
+              className="syllabus-input"
             />
             <select value={form.instructor_id} onChange={(e) => setForm({ ...form, instructor_id: e.target.value })}>
               <option value="">No instructor</option>

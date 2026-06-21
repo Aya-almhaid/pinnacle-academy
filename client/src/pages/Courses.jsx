@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import api from '../api';
+import CourseCard from '../components/CourseCard';
 
 const CATEGORIES = ['All', 'Tech', 'Languages', 'Exam Prep', 'Academic Support'];
 
@@ -25,15 +25,7 @@ export default function Courses() {
 
       <div className="course-grid">
         {courses.map((course) => (
-          <Link to={`/courses/${course.id}`} key={course.id} className="course-card">
-            <span className="category-tag">{course.category}</span>
-            <h3>{course.title}</h3>
-            <p>{course.description}</p>
-            <div className="course-card-footer">
-              <span>${course.price}</span>
-              <span>{course.instructor_name || 'Staff'}</span>
-            </div>
-          </Link>
+          <CourseCard course={course} key={course.id} />
         ))}
         {courses.length === 0 && <p>No courses in this category yet.</p>}
       </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api';
+import CourseCard from '../components/CourseCard';
 
 export default function Home() {
   const [courses, setCourses] = useState([]);
@@ -26,15 +27,7 @@ export default function Home() {
         <h2>Featured Courses</h2>
         <div className="course-grid">
           {courses.map((course) => (
-            <Link to={`/courses/${course.id}`} key={course.id} className="course-card">
-              <span className="category-tag">{course.category}</span>
-              <h3>{course.title}</h3>
-              <p>{course.description}</p>
-              <div className="course-card-footer">
-                <span>${course.price}</span>
-                <span>{course.instructor_name || 'Staff'}</span>
-              </div>
-            </Link>
+            <CourseCard course={course} key={course.id} />
           ))}
         </div>
       </section>
